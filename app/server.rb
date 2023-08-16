@@ -6,11 +6,22 @@ class YourRedisServer
   end
 
   def start
+    puts 'Redis da deep web on'
     server = TCPServer.new(@port)
-    client = server.accept
+
+    loop do
+      Thread.start(server.accept) do |client| 
+       
+        loop do
+            client.recv 4096
+            client.write "+PONG\r\n"
+        end
+      
+        client.close 
+
+      end
+    end
     
-    client.puts "+PONG\r\n"
-    client.close
   end
 end
 
