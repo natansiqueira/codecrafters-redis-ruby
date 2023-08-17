@@ -1,6 +1,6 @@
 require "socket"
 
-class YourRedisServer
+class RedisDaDeepWeb
   def initialize(port)
     @port = port
   end
@@ -11,18 +11,18 @@ class YourRedisServer
 
     loop do
       Thread.start(server.accept) do |client| 
-       
-        loop do
+        begin  
+          loop do
             client.recv 4096
             client.write "+PONG\r\n"
+          end
+        rescue Errno::ECONNRESET
+          puts 'client foi de F'
         end
-      
-        client.close 
-
       end
     end
     
   end
 end
 
-YourRedisServer.new(6379).start
+RedisDaDeepWeb.new(6379).start
