@@ -3,6 +3,7 @@ require "socket"
 class RedisDaDeepWeb
   def initialize(port)
     @port = port
+    @entries = {}
   end
 
   def handle_request(request)
@@ -28,6 +29,17 @@ class RedisDaDeepWeb
 
         "*#{size}\r\n#{params}"
       end
+    when "GET", "get"
+      key = params.first
+      value = @entries[key]
+      
+      return "_\r\n" if value.nil?
+
+      "$#{value.size}\r\n#{value}\r\n"
+    when "SET", "set"
+      key, value = params
+      @entries[key] = value
+      "+OK\r\n"
     when "PING", "ping"
       "+PONG\r\n"
     else
