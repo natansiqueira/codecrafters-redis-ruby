@@ -34,7 +34,7 @@ class RedisDaDeepWeb
       key = params.first
       entry = @entries[key.to_sym]
 
-      return "_\r\n" if entry.nil?
+      return "_\r\n" if entry.nil? or entry[:values].nil?
 
       is_expired = !entry[:expires_at].nil? && entry[:expires_at] < Time.now
 
