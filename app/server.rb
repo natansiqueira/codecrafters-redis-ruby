@@ -1,4 +1,5 @@
 require "socket"
+require "time"
 
 class RedisDaDeepWeb
   def initialize(port)
@@ -30,15 +31,25 @@ class RedisDaDeepWeb
         "*#{size}\r\n#{params}"
       end
     when "GET", "get"
-      key = params.first
-      value = @entries[key]
-      
-      return "_\r\n" if value.nil?
-
-      "$#{value.size}\r\n#{value}\r\n"
-    when "SET", "set"
       key, value = params
-      @entries[key] = value
+      entry = @entries[key.to_sym]
+
+      return "_\r\n" if entry.nil?
+
+      return "$#{entry[:value].size}\r\n#{entry[:value]}\r\n" if entry[:expires_at].nil?
+      is_expired = entry[:expires_at] < Time.now
+      return "_\r\n" if is_expired
+
+      "$#{entry[:value].size}\r\n#{entry[:value]}\r\n"
+    when "SET", "set"
+      key, value = params.shift(2)
+      px, expiry = params
+
+      @entries[key.to_sym] = {
+        :value => value,
+        :expires_at => expiry.nil? ? nil : Time.now + (expiry.to_i / 1000)
+      }
+
       "+OK\r\n"
     when "PING", "ping"
       "+PONG\r\n"
@@ -68,4 +79,8 @@ class RedisDaDeepWeb
   end
 end
 
-RedisDaDeepWeb.new(6379).start
+begin
+  RedisDaDeepWeb.new(6379).start
+rescue SystemExit, Interrupt
+  puts "\nserver foi de F"
+end
