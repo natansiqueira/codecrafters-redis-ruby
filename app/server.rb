@@ -35,9 +35,8 @@ class RedisDaDeepWeb
       entry = @entries[key]
 
       return "$-1\r\n" if entry.nil?
-      puts entry[:expiry]
-      puts Time.now
-      if entry[:expiry] && entry[:expiry] < Time.now
+
+      if entry[:expiry] && entry[:expiry] < (Time.now.to_f * 1000).to_i
         return "$-1\r\n"
       end
 
@@ -51,7 +50,7 @@ class RedisDaDeepWeb
 
       @entries[key] = {
         value: value,
-        expiry: Time.now + (expiry.to_i / 1000)
+        expiry: expiry.nil? ? nil : (Time.now.to_f * 1000).to_i + expiry.to_i
       }
       "+OK\r\n"
     when "PING", "ping"
