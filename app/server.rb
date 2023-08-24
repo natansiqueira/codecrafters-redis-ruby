@@ -31,46 +31,27 @@ class RedisDaDeepWeb
         "*#{size}\r\n#{params}"
       end
     when "GET", "get"
-      key = params.first
-      entry = @entries[key.to_sym]
+      key = params.at(0)
+      entry = @entries[key]
 
-      return "_\r\n" if entry.nil? or entry[:values].nil?
-
-      is_expired = !entry[:expires_at].nil? && entry[:expires_at] < Time.now
-
-      if is_expired
-        @entries.delete key.to_sym
-        return "_\r\n"
+      return "$-1\r\n" if entry.nil?
+      puts entry[:expiry]
+      puts Time.now
+      if entry[:expiry] && entry[:expiry] < Time.now
+        return "$-1\r\n"
       end
 
-      values = entry[:values]
-      return "$0\r\n\r\n" if values.size == 0
+      value = entry[:value]
 
-      if values.size == 1 or values.is_a? String
-        return "+#{values}\r\n"
-      end
-
-      size = values.size
-      values = values
-        .map { |value| "$#{value.size}\r\n#{value}\r\n" }
-        .join
-
-      "*#{size}\r\n#{values}"
+      "$#{value.size}\r\n#{value}\r\n"
     when "SET", "set"
-      px = params.index { |element| element =~ /(PXe|px)/ }
-      expiry = nil
+      key = params.at(0)
+      value = params.at(1)
+      expiry = params.at(3)
 
-      if not px.nil?
-        expiry = params.drop(px).last
-        key, values = params.shift, params.slice(0, px)
-      else
-        key, values = params.shift(1)
-      end
-
-
-      @entries[key.to_sym] = {
-        :values => values,
-        :expires_at => expiry.nil? ? nil : Time.now + (expiry.to_i / 1000)
+      @entries[key] = {
+        value: value,
+        expiry: Time.now + (expiry.to_i / 1000)
       }
       "+OK\r\n"
     when "PING", "ping"
