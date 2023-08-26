@@ -1,88 +1,87 @@
-require "socket"
-require "time"
+# frozen_string_literal: true
 
-class RedisDaDeepWeb
+require 'socket'
+require 'time'
+
+# Redis
+class Redis
   def initialize(port)
     @port = port
     @entries = {}
   end
 
-  def handle_request(request)
-    params = request
-      .split
-      .select { |element| not(element =~ /[*$]\d+/)  }
+  def pong
+    "+PONG\r\n"
+  end
 
-    command = params.shift(1).first
+  def echo(param)
+    "$#{param.size}\r\n#{param}\r\n"
+  end
+
+  def get(param)
+    entry = @entries[param]
+
+    return "$-1\r\n" if entry.nil?
+    return "$-1\r\n" if entry[:expiry] && entry[:expiry] < (Time.now.to_f * 1000).to_i
+
+    value = entry[:value]
+    "$#{value.size}\r\n#{value}\r\n"
+  end
+
+  def set(params)
+    key, value = params.shift(3)
+    expiry = params.at(0)
+
+    @entries[key] = {
+      value:,
+      expiry: expiry.nil? ? nil : (Time.now.to_f * 1000).to_i + expiry.to_i
+    }
+
+    "+OK\r\n"
+  end
+
+  def handle_message(params)
+    command = params.shift
 
     case command
-    when "ECHO", "echo"
-      case params.size
-      when 0
-        "$0\r\n\r\n"
-      when 1
-        param = params.first
-        "+#{param}\r\n"
-      else
-        size = params.size
-        params = params
-          .map { |element| "$#{element.size}\r\n#{element}\r\n" }
-          .join
-
-        "*#{size}\r\n#{params}"
-      end
-    when "GET", "get"
-      key = params.at(0)
-      entry = @entries[key]
-
-      return "$-1\r\n" if entry.nil?
-
-      if entry[:expiry] && entry[:expiry] < (Time.now.to_f * 1000).to_i
-        return "$-1\r\n"
-      end
-
-      value = entry[:value]
-
-      "$#{value.size}\r\n#{value}\r\n"
-    when "SET", "set"
-      key = params.at(0)
-      value = params.at(1)
-      expiry = params.at(3)
-
-      @entries[key] = {
-        value: value,
-        expiry: expiry.nil? ? nil : (Time.now.to_f * 1000).to_i + expiry.to_i
-      }
-      "+OK\r\n"
-    when "PING", "ping"
-      "+PONG\r\n"
+    when 'ping', 'PING' then pong
+    when 'echo', 'ECHO' then echo params.at(0)
+    when 'get', 'GET' then get params.at(0)
+    when 'set', 'SET' then set params
     else
       "-ERR unknown command '#{command}'\r\n"
     end
   end
 
+  def parse_message(message)
+    message.split.reject { |element| (element =~ /[*$]\d+/) }
+  end
+
+  def handle_client(client)
+    loop do
+      message = client.recv 4096
+      params = parse_message message
+      response = handle_message params
+      client.write response
+    end
+  end
+
   def start
-    puts 'Redis da deep web on'
+    puts 'redis has been started'
     server = TCPServer.new(@port)
 
     loop do
       Thread.start(server.accept) do |client|
-        begin
-          loop do
-            request = client.recv 4096
-            response = handle_request request
-            client.write response
-          end
-        rescue Errno::ECONNRESET, Errno::EPIPE
-          puts 'client foi de F'
-        end
+        handle_client client
+      rescue Errno::ECONNRESET, Errno::EPIPE
+        puts 'client disconnected'
       end
     end
-
   end
 end
 
 begin
-  RedisDaDeepWeb.new(6379).start
+  Redis.new(6379).start
 rescue SystemExit, Interrupt
-  puts "\nserver foi de F"
+  puts "\nserver has been shutdown"
 end
