@@ -33,7 +33,7 @@ class Redis
     expiry = params.at(0)
 
     @entries[key] = {
-      value:,
+      value: value,
       expiry: expiry.nil? ? nil : (Time.now.to_f * 1000).to_i + expiry.to_i
     }
 
